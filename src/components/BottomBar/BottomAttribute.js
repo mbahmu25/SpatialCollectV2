@@ -4,19 +4,39 @@ import tw from "twrnc"
 import IconAnt from 'react-native-vector-icons/AntDesign';
 import IconMaterial from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const BottomAttribute = ({attributeOpen,setAttributeOpen,kolomAttribute,tambahBidang}) => {
+const BottomAttribute = ({attributeOpen,setAttributeOpen,kolomAttribute,tambahBidang,selectBidang}) => {
 
   const [input, setInput] = useState({})
+  const [edit, setEdit] = useState(true)
+
+  useEffect(() => {
+    console.log(attributeOpen["mode"])
+    if(attributeOpen["mode"] == "info"){
+      setEdit(false)
+    }
+  }, [])
+  
 
   var DataAtribute = ({namaKolom,onChangeText}) => {
     return <View style={tw`my-1`}>
       <Text>
         {namaKolom}
       </Text>
-      <TextInput 
-        style={tw`border-2 mt-1 border-solid border-gray-500 p-1`}
-        onChangeText={onChangeText}
-      />
+      {attributeOpen["mode"] == "baru" ?
+        <TextInput 
+          editable={true}
+          style={tw`border-2 mt-1 border-solid border-gray-500 p-1`}
+          onChangeText={onChangeText}
+        />
+        :
+        <TextInput 
+          editable={edit}
+          style={tw`border-2 mt-1 border-solid border-gray-500 p-1`}
+          onChangeText={onChangeText}
+          value={selectBidang["properties"][namaKolom]}
+        />
+      }
+      
     </View>
   }
 
