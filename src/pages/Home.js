@@ -2,8 +2,6 @@ import { View, Text,Pressable,Image } from 'react-native'
 import React from 'react'
 import tw from "twrnc"
 import Logo from "../images/logo.png"
-import DocumentPicker from 'react-native-document-picker'
-import RNFS from "react-native-fs"
 
 const Home = ({navigation}) => {
 
@@ -16,13 +14,22 @@ const Home = ({navigation}) => {
     }
   }
 
+  var createProject = () => {
+    try {
+      console.log("open")
+      navigation.navigate('CreateProject')
+    } catch (e) {
+      console.log(e)
+    }
+  }
+
   return (
     <View style={tw`flex justify-center items-center h-full`}>
         <View style={tw`flex-row items-center justify-center`}>
           <Image source={Logo} style={tw`w-10 h-17`}/>
           <Text style={tw`text-lg font-medium text-sky-700 ml-2`}>Spatial Collect</Text>
         </View>
-        <Pressable>
+        <Pressable  onPress={createProject}>
             <View style={tw`py-4 w-64 mt-4 flex items-center rounded-md bg-sky-700`}>
                 <Text style={tw`text-white font-medium`}>
                     New Project
