@@ -1,8 +1,10 @@
-import { View, Text,Pressable,Animated,Image,LogBox } from 'react-native'
+import { View, Text,Pressable,Animated,Image,LogBox,PermissionsAndroid } from 'react-native'
 import React,{useState,useRef,useEffect } from 'react'
 import tw from "twrnc"
 import Logo from "../../images/logo.png"
-import Icon from 'react-native-vector-icons/AntDesign';
+import IconAnt from 'react-native-vector-icons/AntDesign';
+import IconFeather from 'react-native-vector-icons/Feather';
+import DocumentPicker from 'react-native-document-picker'
 
 const Sidebar = ({open = false,setOpen,navigation}) => {
 
@@ -35,14 +37,38 @@ const Sidebar = ({open = false,setOpen,navigation}) => {
 
 
     
-    var SidebarMenu = ({nama="Belum diisi",icon="download",pressHandle}) => {
+    var SidebarMenu = ({nama="Belum diisi",Icon,pressHandle}) => {
       return <Pressable onPress={pressHandle}>
         <View style={[tw`flex flex-row items-center text-xl p-3`]}>
-          <Icon name={icon} size={25}/>
+          {Icon}
+          {/* <Icon/> */}
           <Text style={tw` ml-2`}>{nama}</Text>
         </View>
       </Pressable>
-      
+    }
+
+    var addBasemap = async () => {
+      try {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+        ]);
+      } catch (err) {
+          console.warn(err);
+      }
+      const readGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE); 
+      const writeGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
+      if(!readGranted || !writeGranted ) {
+          console.log('Read and write permissions have not been granted');
+          return;
+      }
+
+      const pickerResult = await DocumentPicker.pickSingle()
+      console.log(pickerResult,"hasil")
+
+      if(!pickerResult){
+          return
+      }
     }
 
   return (
@@ -54,12 +80,13 @@ const Sidebar = ({open = false,setOpen,navigation}) => {
           <Text style={tw`text-white font-medium`}>Spatial Collect</Text>
         </View>
         <Pressable onPress={()=>setOpen(!open)}>
-          <Icon name='arrowleft' size={25} color="white"/>
+          <IconAnt name='arrowleft' size={25} color="white"/>
         </Pressable>
       </View>
       {/* <SidebarMenu nama='Edit attribute' icon='edit'/>
       <SidebarMenu nama='Export layer' icon='download'/> */}
-      <SidebarMenu nama='Back to home' icon='home' pressHandle={()=>navigation.navigate("Home")}/>
+      {/* <SidebarMenu nama='Add basemap' Icon={<IconFeather name={"map"} size={25} />} pressHandle={addBasemap}/> */}
+      <SidebarMenu nama='Back to home' Icon={<IconAnt name={"home"} size={25} />} pressHandle={()=>navigation.navigate("Home")}/>
     </Animated.View>
    
   )

@@ -55,16 +55,36 @@ export default function CreateProject({navigation}) {
   }
 
   var buatProject = () => {
+    var properties = {}
+    daftarAttribute.map(e=>
+      properties[e] = ""
+    )
+    var koordinat
+    if(tipeGeometry == "Point"){
+      koordinat = [0,0]
+    }else if(tipeGeometry == "Polygon"){
+      koordinat = [[[[0,0]]]]
+    }
     var data = {
         type: "FeatureCollection",
         name: namaProject,
         crs: { type: "name", properties: { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
         features: [
         { "type": "Feature", "properties": 
-            { "OBJECTID": 1, "KECAMATAN": "Semarang Selatan", "KELURAHAN": "Bulustalan", "ALMT_TANAH": "JL. SUYUDONO 181 A", "KOTA": "Semarang", "PROVINSI": "Jawa Tengah", "KODE_POS": "50246", "NOMOR": "132 B", "Shape_Leng": 33.207050092499998, "Shape_Area": 71.292791996999995, "ALAMAT_S": "Jalan Suyudono Nomor 132 B", "JALAN_GANG": "Jalan Suyudono", "ALAMAT": "Jalan Suyudono Nomor 132 B Bulustalan Semarang Selatan, Semarang, Jawa Tengah, 50246", "RT": null, "RW": null, "WILAYAH": null }, 
-            "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 110.403030340155439, -6.990808640687365 ], [ 110.402976829213898, -6.990810548416052 ], [ 110.402969882134357, -6.99080176006184 ], [ 110.402961283751978, -6.990786562695673 ], [ 110.402955119390825, -6.990770226873287 ], [ 110.402951537030347, -6.990753139929157 ], [ 110.402950619445633, -6.990735706301527 ], [ 110.402950776973185, -6.990729285109095 ], [ 110.403027049744907, -6.990725583558246 ], [ 110.403030340155439, -6.990808640687365 ] ] ] ] } },
+            properties, 
+            "geometry": { "type": tipeGeometry, "coordinates": koordinat  } },
       ]
     }
+    var path = `${RNFS.DocumentDirectoryPath}/project/${namaProject}`;
+    RNFS.writeFile(path,JSON.stringify(data),'utf8').then((success) => {
+      console.log('SUCCESS');
+    })
+    .catch((err) => {
+        console.log(err.message);
+    });
+    navigation.navigate('Peta',{
+      path:path
+  })
   }
 
   return (
@@ -94,7 +114,7 @@ export default function CreateProject({navigation}) {
             <SelectDropdown
               buttonStyle={tw`bg-gray-200 text-black mt-2 py-1 px-3 w-full rounded-sm`}
               buttonTextStyle={tw`text-base`}
-              data={["Point", "Polygon", "Polyline"]}
+              data={["Point", "Polygon"]}
               onSelect={(selectedItem, index) => {
                 setTipeGeometry(selectedItem)
               }}

@@ -71,6 +71,7 @@ const ProjectPage = ({navigation}) => {
     }
 
     var bukaProject = (data) => {
+        console.log(data["path"])
         navigation.navigate('Peta',{
             path:data["path"]
         })
