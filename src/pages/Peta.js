@@ -1,6 +1,6 @@
 import { View,Text, Pressable,Platform,PermissionsAndroid,ToastAndroid,Alert,Dimensions } from 'react-native'
 import React,{useRef, useState,useEffect} from 'react'
-import MapView, { Marker,Polygon, UrlTile, WMSTile,Overlay } from 'react-native-maps';
+import MapView, { Marker,Polygon, WMSTile } from 'react-native-maps';
 import tw from "twrnc"
 import Geolocation from 'react-native-geolocation-service';
 import IconAnt from 'react-native-vector-icons/AntDesign';
@@ -9,10 +9,10 @@ import Sidebar from '../components/sidebar/Sidebar';
 import BottomAttribute from '../components/BottomBar/BottomAttribute';
 import RNFS from "react-native-fs"
 import SweetAlert from 'react-native-sweet-alert';
+import BottomMenu from '../components/BottomBar/BottomMenu';
+import GpsLocation from '../components/BottomBar/GpsLocation';
 
 const Peta = ({ route, navigation }) => {
-
-  const {width, height} = Dimensions.get('window');
 
   const [region, setRegion] = useState({
     latitude: -7.78825,
@@ -24,14 +24,15 @@ const Peta = ({ route, navigation }) => {
   const [koordinatBidangEdit, setkoordinatBidangEdit] = useState([])
   const [selectBidang, setSelectBidang] = useState(false)
   const [open, setOpen] = useState(false)
-  const [GpsStatus,setGpsStatus ] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [GpsStatus,setGpsStatus ] = useState(true)
+  const [posisiGPS,setPosisiGps] = useState(false)
   const [namaFile, setNamaFile] = useState("")
   const [tipeGeometry, setTipeGeometry] = useState()
   const [editFeature, setEditFeature] = useState(false)
   const [kolomAttribute, setKolomAttribute] = useState([])
   const [indexEditBidang, setIndexEditBidang] = useState(false)
   const [dataProject, setDataProject] = useState({features:[]})
-  // const [bbox, setBbox] = useState([110.36812009289861, -7.894177374764575, 110.39051989093423, -7.852635700366876])
   const [attributeOpen, setAttributeOpen] = useState({mode:"baru",buka:false})
   const [startLocation, setStartLocation] = useState({latitude :-5.134054,longitude :119.444510})
   const map = useRef(false)
@@ -63,7 +64,6 @@ const Peta = ({ route, navigation }) => {
     const hasPermission = await PermissionsAndroid.check(
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     );
-    console.log(hasPermission,"has")
     if (hasPermission) {
       return true;
     }
@@ -75,8 +75,6 @@ const Peta = ({ route, navigation }) => {
         'message': 'Example App access to your location '
       }
     )
-    console.log(status,"granted")
-
 
     if (status === PermissionsAndroid.RESULTS.GRANTED) {
       return true;
@@ -110,16 +108,18 @@ const Peta = ({ route, navigation }) => {
         console.log(error);
       })
   }
+
   useEffect(() => {
     getLocation(cb=>{
       setStartLocation({longitude:cb["longitude"],latitude:cb["latitude"]})
     })
+    setInterval(async ()=>{
+      getLocation(cb=>setPosisiGps(cb))
+    },2000)
   }, [])
   
   const tambahBidang = (dataAtribute) => {
     var koordinat = [...koordinatBidangBaru]
-    
-    console.log(koordinat,"koordinat")
     // console.log(dataProject["features"],"data")
     var daftarFeature = dataProject["features"]
     var copyData = dataProject
@@ -170,6 +170,7 @@ const Peta = ({ route, navigation }) => {
     copyData["features"][index]["geometry"]["coordinates"][0][0] = koordinatBidangEdit
     setDataProject(copyData)
     setEditFeature(false)
+    setSelectBidang(false)
     setkoordinatBidangEdit([])
     saveData(copyData)
   }
@@ -192,7 +193,6 @@ const Peta = ({ route, navigation }) => {
       }else if(tipeGeometry == "MultiPolygon" || tipeGeometry == "Polygon"){
         setStateKoordinat(stateKoordinat.concat([[region["longitude"],region["latitude"]]]))
       }
-      
     }
   }
 
@@ -202,14 +202,51 @@ const Peta = ({ route, navigation }) => {
     setStateKoordinat(koordinat)
   }
 
-  const editBidang = (index) => {
+  const editBidang = () => {
     setEditFeature(true)
+    setSelectBidang(false)
+    var index = indexEditBidang
     var bidang = dataProject["features"][index]["geometry"]
     if(tipeGeometry == "MultiPolygon" || tipeGeometry == "Polygon"){
       setkoordinatBidangEdit(bidang["coordinates"][0][0])
     }else if(tipeGeometry == "Point"){
       setkoordinatBidangEdit(bidang["coordinates"])
     }
+  }
+
+  const deleteBidang = () => {
+    Alert.alert(
+      "Peringatan",
+      "Apa anda ingin menghapus data?",
+      [
+        {
+          text: "Cancel",
+          onPress: () => console.log("Cancel Pressed"),
+          style: "cancel"
+        },
+        { text: "OK", onPress: () => {
+            var copyData = dataProject
+            copyData["features"].splice(indexEditBidang, 1)
+            const { path } = route.params;
+            setkoordinatBidangEdit([])
+            setSelectBidang(false)
+            setDataProject(copyData)
+            RNFS.writeFile(path,JSON.stringify(copyData),'utf8').then((success) => {
+              SweetAlert.showAlertWithOptions({
+                title: 'Data berhasil dihapus',
+                subTitle: 'Tekan tombol Ok untuk menutup',
+                style: 'success',
+                cancellable: true
+              });
+              setDataProject(copyData)
+            })
+            .catch((err) => {
+              console.log(err.message);
+            });
+          } 
+        }
+      ]
+    );
   }
 
   const editAttribute = (input) => {
@@ -224,7 +261,7 @@ const Peta = ({ route, navigation }) => {
         },
         { text: "OK", onPress: () => {
             var copyData = dataProject
-            copyData["features"][input["index"]]["properties"] = input["data"]
+            copyData["features"][indexEditBidang]["properties"] = input["data"]
             const { path } = route.params;
             RNFS.writeFile(path,JSON.stringify(copyData),'utf8').then((success) => {
               SweetAlert.showAlertWithOptions({
@@ -253,10 +290,10 @@ const Peta = ({ route, navigation }) => {
   }
 
   const pilihBidang = (index) => {
+    if(editFeature) return
     setIndexEditBidang(index)
-    setAttributeOpen({mode:"info",buka:true,index:index})
+    setMenuOpen(true)
     var bidang = dataProject["features"][index]
-    console.log(bidang,"bidang")
     setSelectBidang(bidang)
   }
 
@@ -274,6 +311,7 @@ const Peta = ({ route, navigation }) => {
           setEditFeature(false)
           setKoordinatBidangBaru([])
           setkoordinatBidangEdit([])
+          setSelectBidang(false)
           } 
         }
       ]
@@ -281,7 +319,7 @@ const Peta = ({ route, navigation }) => {
    
   }
 
-  const CreateGeometry = ({data,fillColor="rgba(14,165,233,1)",strokeColor="red",select=false}) => {
+  const CreateGeometry = ({data,stylePoint="bg-yellow-500 border-2 border-white",styleStroke="yellow",select=false}) => {
    
     if(tipeGeometry == "MultiPolygon" || tipeGeometry == "Polygon"){
       var koordinat = []
@@ -297,39 +335,26 @@ const Peta = ({ route, navigation }) => {
       
       return <Polygon 
         coordinates={koordinat} 
-        strokeColor="red"
+        strokeColor={styleStroke}
         fillColor='rgba(14,165,233,0.2)'
       />
     }else if(tipeGeometry == "Point"){
       return <Marker
         coordinate={{latitude:data[1],longitude:data[0]}}
-        draggable = {false}
       >
         <View style={tw` flex items-center justify-center`}>
-            <View style={[tw`h-3 w-3 rounded-full flex items-center justify-center`,{backgroundColor:fillColor}]}></View>
+            <View style={[tw`h-3 w-3 rounded-full flex items-center justify-center`,tw`${stylePoint}`]}></View>
         </View>
       </Marker>
     }
     
     }
 
-  const setRegionAndBoundingBox = (regionPerubahan) => {
-    setRegion(regionPerubahan)
-    // var bounding = [
-    //   regionPerubahan.longitude - regionPerubahan.longitudeDelta, // westLng - min lng
-    //   regionPerubahan.latitude - regionPerubahan.latitudeDelta, // southLat - min lat
-    //   regionPerubahan.longitude + regionPerubahan.longitudeDelta, // eastLng - max lng
-    //   regionPerubahan.latitude + regionPerubahan.latitudeDelta // northLat - max lat
-    // ]
-    // setBbox(bounding)
-    // console.log(bounding,"region2")
-  }
-
   return (
     <View style={tw`w-full h-full `}>
       <MapView
         ref={map}
-        // mapType={"satellite"}
+        mapType={"satellite"}
         style={tw`w-full h-full absolute`}
         showsUserLocation={true}
         region={{
@@ -338,7 +363,7 @@ const Peta = ({ route, navigation }) => {
             latitudeDelta: 0.0112,
             longitudeDelta: 0.0112,
         }}
-        onRegionChangeComplete={(e)=>setRegionAndBoundingBox(e)}
+        onRegionChangeComplete={(regionPerubahan)=>setRegion(regionPerubahan)}
         >
           <WMSTile
             urlTemplate={`https://ppids-ugm.com/geoserver/ppids/wms?service=WMS&version=1.1.1&request=GetMap&layers=ppids:gpr2020Tif&format=image/png&transparent=true&styles=&bbox={minX},{minY},{maxX},{maxY}&width={width}&height={height}&srs=EPSG:3857`}
@@ -348,15 +373,14 @@ const Peta = ({ route, navigation }) => {
           />
           {
             tipeGeometry != "Point" && koordinatBidangBaru.length != 0 && koordinatBidangBaru.map((data,index)=>{
-              console.log(data,"Data")
               return  <Marker
                 key={index}
                 coordinate={{latitude:data[1],longitude:data[0]}}
                 draggable
-                onDragEnd={(e)=>editMarker(e.nativeEvent.coordinate,index,koordinatBidangBaru,setKoordinatBidangBaru)}
+                onDrag={(e)=>editMarker(e.nativeEvent.coordinate,index,koordinatBidangBaru,setKoordinatBidangBaru)}
               >
                 <View style={tw` flex items-center justify-center`}>
-                    <View style={tw`h-3 w-3 rounded-full bg-red-500 flex items-center justify-center`}></View>
+                    <View style={tw`h-3 w-3 rounded-full bg-yellow-500 border-2 border-white flex items-center justify-center`}></View>
                 </View>
               </Marker>
             })
@@ -367,10 +391,10 @@ const Peta = ({ route, navigation }) => {
                 key={index}
                 coordinate={{latitude:data[1],longitude:data[0]}}
                 draggable
-                onDragEnd={(e)=>editMarker(e.nativeEvent.coordinate,index,koordinatBidangEdit,setkoordinatBidangEdit)}
+                onDrag={(e)=>editMarker(e.nativeEvent.coordinate,index,koordinatBidangEdit,setkoordinatBidangEdit)}
               >
                 <View style={tw` flex items-center justify-center`}>
-                    <View style={tw`h-3 w-3 rounded-full bg-red-500 flex items-center justify-center`}></View>
+                    <View style={tw`h-3 w-3 rounded-full bg-yellow-500 border-2 border-white flex items-center justify-center`}></View>
                 </View>
               </Marker>
             })
@@ -382,7 +406,7 @@ const Peta = ({ route, navigation }) => {
             koordinatBidangEdit.length != 0 && <CreateGeometry data={koordinatBidangEdit}/>
           }
           {
-            selectBidang && <CreateGeometry data={selectBidang["geometry"]["coordinates"]} select={true} fillColor="rgba(250,204,21,1)" strokeColor='red'/>
+            selectBidang && <CreateGeometry data={selectBidang["geometry"]["coordinates"]} select={true}/>
           }
           {
             dataProject["features"] && dataProject["features"].length != 0 && dataProject["features"].map((data,index)=>{
@@ -390,11 +414,10 @@ const Peta = ({ route, navigation }) => {
                 return <Marker
                   key={index}
                   coordinate={{latitude:data["geometry"]["coordinates"][1],longitude:data["geometry"]["coordinates"][0]}}
-                  draggable
                   onPress={()=>pilihBidang(index)} 
                 >
                   <View style={tw` flex items-center justify-center`}>
-                      <View style={tw`h-3 w-3 rounded-full bg-red-500 flex items-center justify-center`}></View>
+                      <View style={tw`h-3 w-3 rounded-full bg-green-500 border-2 border-white flex items-center justify-center`}></View>
                   </View>
                 </Marker>
               }else if(tipeGeometry == "MultiPolygon" || tipeGeometry == "Polygon"){
@@ -407,20 +430,25 @@ const Peta = ({ route, navigation }) => {
                   tappable={true} 
                   onPress={()=>pilihBidang(index)} 
                   coordinates={koordinat} 
-                  strokeColor="red"
-                  fillColor='rgba(0,0,0,0.2)'
+                  strokeColor="green"
+                  strokeWidth={2}
+                  fillColor='rgba(0,0,0,0.3)'
                 />
               }
               })
           }
         </MapView>
       
-        <View style={tw`bg-sky-800 flex-row py-3 px-2 w-full absolute top-0 flex justify-start items-center`}>
-          <Pressable onPress={()=>setOpen(!open)} >
-            <IconAnt name='profile' size={28} color="white"/>
-          </Pressable>  
-          <Text style={tw`text-white ml-2`}>{namaFile}</Text>
+        <View style={tw`w-full absolute top-0 `}>
+          <View style={tw`bg-sky-800 flex-row py-3 px-2 flex justify-start items-center`}>
+            <Pressable onPress={()=>setOpen(!open)} >
+              <IconAnt name='profile' size={28} color="white"/>
+            </Pressable>  
+            <Text style={tw`text-white ml-2`}>{namaFile}</Text>
+          </View>
+          {GpsStatus && posisiGPS && <GpsLocation posisiGPS={posisiGPS}/>}
         </View>
+
         <Sidebar open={open} setOpen={setOpen} navigation={navigation}/>
 
         <View
@@ -455,7 +483,7 @@ const Peta = ({ route, navigation }) => {
               </Pressable>
             }
             {
-              !editFeature && <Pressable onPress={()=>{addMarker(koordinatBidangBaru,setKoordinatBidangBaru)}} >
+              <Pressable onPress={()=>{addMarker(koordinatBidangBaru,setKoordinatBidangBaru)}} >
                 <View style={tw`bg-blue-500 ml-2 w-12 h-12 rounded-full flex justify-center items-center`}>
                   <IconAnt name='plus' size={25} color="white"/>
                 </View>
@@ -466,7 +494,6 @@ const Peta = ({ route, navigation }) => {
 
           {editFeature &&
             <View style={tw`flex-row`}>
-
               <Pressable onPress={()=>{
                   saveEditGeometry()
                 }} >
@@ -482,20 +509,30 @@ const Peta = ({ route, navigation }) => {
                   <IconAnt name='close' size={25} color="white"/>
                 </View>
               </Pressable>
-
-              <Pressable onPress={()=>{addMarker(koordinatBidangEdit,setkoordinatBidangEdit)}} >
-                <View style={tw`bg-blue-500 w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
-                  <IconAnt name='plus' size={25} color="white"/>
-                </View>
-              </Pressable>
-
+              
+              {tipeGeometry !== "Point" &&
+                <Pressable onPress={()=>{addMarker(koordinatBidangEdit,setkoordinatBidangEdit)}} >
+                  <View style={tw`bg-blue-500 w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
+                    <IconAnt name='plus' size={25} color="white"/>
+                  </View>
+                </Pressable>
+              }
             </View> 
           }
+        <BottomMenu
+          menuOpen={menuOpen}
+          setAttributeOpen={setAttributeOpen} 
+          setMenuOpen={setMenuOpen} 
+          editBidang={editBidang}
+          deleteBidang={deleteBidang}
+          setSelectBidang={setSelectBidang}
+        />
         <BottomAttribute 
           attributeOpen = {attributeOpen} 
           setAttributeOpen={setAttributeOpen} 
           kolomAttribute={kolomAttribute}
           tambahBidang = {tambahBidang}
+          setSelectBidang={setSelectBidang}
           selectBidang={selectBidang}
           cancelEdit={cancelEdit}
           editAttribute={editAttribute}

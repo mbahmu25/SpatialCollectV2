@@ -17,7 +17,7 @@ const SpalashScreen = ({navigation}) => {
           <Image source = {Logo}
           style = {[tw``,{ width: 200, height: 200 }]}
       />
-        <Text style={tw`absolute bottom-4 text-lg font-medium`}>Spatial Collect</Text>
+        <Text style={tw`absolute bottom-4 text-lg font-medium`}>AssetKu</Text>
       </View>
     )
 }

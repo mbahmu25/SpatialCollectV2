@@ -103,14 +103,14 @@ export default function CreateProject({navigation}) {
         <View style={tw`px-4 flex items-center`}>
           <View style={tw`mt-5 w-full`}>
           <View style={tw`w-full`}>
-            <Text style={tw`font-medium`}>Nama Project</Text>
+            <Text style={tw`font-medium  text-black`}>Nama Project</Text>
             <TextInput
                 onChangeText={text=>setNamaProject(text)}
                 style={[tw`bg-gray-200 text-black mt-2 py-2 px-3 w-full rounded-sm`]}
             />
             {checkNama && <Text style={tw`text-xs text-red-500 mt-1`}>*Nama file telah digunakan</Text>}
           </View>
-            <Text style={tw`font-medium mt-2`}>Bentuk Geometry</Text>
+            <Text style={tw`font-medium mt-2 text-black`}>Bentuk Geometry</Text>
             <SelectDropdown
               buttonStyle={tw`bg-gray-200 text-black mt-2 py-1 px-3 w-full rounded-sm`}
               buttonTextStyle={tw`text-base`}
@@ -134,7 +134,7 @@ export default function CreateProject({navigation}) {
             style={tw`w-full`}
           >
           <View>
-            <Text style={tw`font-medium mt-2`}>Daftar Attribute</Text>
+            <Text style={tw`font-medium mt-2  text-black`}>Daftar Attribute</Text>
             <View style={tw`flex mt-2 `}>
               <TextInput 
                 style={tw`w-full bg-gray-200`}

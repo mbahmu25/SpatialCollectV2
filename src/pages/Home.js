@@ -27,7 +27,7 @@ const Home = ({navigation}) => {
     <View style={tw`flex justify-center items-center h-full`}>
         <View style={tw`flex-row items-center justify-center`}>
           <Image source={Logo} style={tw`w-10 h-17`}/>
-          <Text style={tw`text-lg font-medium text-sky-700 ml-2`}>Spatial Collect</Text>
+          <Text style={tw`text-lg font-medium text-sky-700 ml-2`}>AssetKu</Text>
         </View>
         <Pressable  onPress={createProject}>
             <View style={tw`py-4 w-64 mt-4 flex items-center rounded-md bg-sky-700`}>

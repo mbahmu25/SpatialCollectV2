@@ -4,7 +4,7 @@ import tw from "twrnc"
 import IconAnt from 'react-native-vector-icons/AntDesign';
 import IconMaterial from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const BottomAttribute = ({attributeOpen,editBidang,editAttribute,setAttributeOpen,kolomAttribute,tambahBidang,cancelEdit,selectBidang}) => {
+const BottomAttribute = ({attributeOpen,editAttribute,setAttributeOpen,kolomAttribute,tambahBidang,cancelEdit,selectBidang}) => {
 
   const [input, setInput] = useState({})
   const [edit, setEdit] = useState(true)
@@ -23,28 +23,29 @@ const BottomAttribute = ({attributeOpen,editBidang,editAttribute,setAttributeOpe
       setInput(initKolom)
     }
   }, [attributeOpen])
+  
 
   var DataAtribute = ({namaKolom,onChangeText,text}) => {
     return <View style={tw`my-1`}>
-      <Text>
+      <Text style={tw`text-black font-bold`}>
         {namaKolom}
       </Text>
       {attributeOpen["mode"] == "baru" ?
         <TextInput 
           editable={true}
-          style={tw`border-2 mt-1 border-solid border-gray-500 p-1`}
+          style={tw`border-2 mt-1 text-black border-solid p-1`}
           onChangeText={onChangeText}
         />
         : edit ?
         <TextInput 
           editable={true}
-          style={tw`border-2 mt-1 border-solid border-gray-500 p-1`}
+          style={tw`border-2 mt-1 text-black border-solid p-1`}
           onChangeText={onChangeText}
           defaultValue={text}
         /> :
         <TextInput 
           editable={false}
-          style={tw`border-2 mt-1 border-solid border-gray-500 p-1`}
+          style={tw`border-2 mt-1 text-black border-solid p-1`}
           onChangeText={onChangeText}
           value={text}
         />
@@ -55,7 +56,6 @@ const BottomAttribute = ({attributeOpen,editBidang,editAttribute,setAttributeOpe
   const handleFormChange = (kolom,text) => {
     var data = input
     data[kolom] = text
-    console.log(data)
     setInput(data)
   }
 
@@ -101,15 +101,6 @@ const BottomAttribute = ({attributeOpen,editBidang,editAttribute,setAttributeOpe
               </View> 
                 : !edit ?
               <View style={tw`flex-row`}>
-
-                <Pressable
-                  onPress={()=>{
-                    editBidang(attributeOpen["index"])
-                    setAttributeOpen({mode:"baru",buka:false})
-                  }}
-                >
-                  <IconMaterial name='vector-polyline-edit' style={tw`mr-2`} size={25} color="white"/>
-                </Pressable>
                 <Pressable
                   onPress={()=>{
                     setEdit(!edit)
@@ -122,7 +113,7 @@ const BottomAttribute = ({attributeOpen,editBidang,editAttribute,setAttributeOpe
               <View style={tw`flex-row`}>
                 <Pressable
                   onPress={()=>{
-                    editAttribute({data:input,index:attributeOpen["index"]})
+                    editAttribute({data:input})
                     setEdit(!edit)
                   }}
                 >
