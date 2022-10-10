@@ -27,6 +27,7 @@ const Peta = ({ route, navigation }) => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [GpsStatus,setGpsStatus ] = useState(true)
   const [posisiGPS,setPosisiGps] = useState(false)
+  const [intervalGPS,setIntervalGPS] = useState(false)
   const [namaFile, setNamaFile] = useState("")
   const [tipeGeometry, setTipeGeometry] = useState()
   const [editFeature, setEditFeature] = useState(false)
@@ -106,21 +107,25 @@ const Peta = ({ route, navigation }) => {
       },
       (error) => {
         console.log(error);
-      })
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    )
   }
 
   useEffect(() => {
     getLocation(cb=>{
       setStartLocation({longitude:cb["longitude"],latitude:cb["latitude"]})
     })
-    setInterval(async ()=>{
+    setIntervalGPS(setInterval(async ()=>{
       getLocation(cb=>setPosisiGps(cb))
-    },2000)
+    },2000))
   }, [])
   
   const tambahBidang = (dataAtribute) => {
+    setIntervalGPS(setInterval(async ()=>{
+      getLocation(cb=>setPosisiGps(cb))
+    },2000))
     var koordinat = [...koordinatBidangBaru]
-    // console.log(dataProject["features"],"data")
     var daftarFeature = dataProject["features"]
     var copyData = dataProject
     if(tipeGeometry=="Point"){
@@ -176,6 +181,7 @@ const Peta = ({ route, navigation }) => {
   }
 
   const addMarker = (stateKoordinat,setStateKoordinat) => {
+    clearInterval(intervalGPS)
     if(GpsStatus){
       getLocation(cb=>{
         if(tipeGeometry=="Point"){
@@ -450,7 +456,7 @@ const Peta = ({ route, navigation }) => {
         </View>
 
         <Sidebar open={open} setOpen={setOpen} navigation={navigation}/>
-
+        
         <View
               style={tw`absolute bottom-2 right-2 justify-end items-end`}
         > 
@@ -462,7 +468,10 @@ const Peta = ({ route, navigation }) => {
 
           <View style={tw`flex-row`}>
             {
-              koordinatBidangBaru.length > 2 &&  <Pressable onPress={()=>{setAttributeOpen({mode:"baru",buka:true})}} >
+              koordinatBidangBaru.length > 2 &&  <Pressable onPress={()=>{
+                
+                setAttributeOpen({mode:"baru",buka:true})
+              }} >
               <View style={tw`bg-green-500 w-12 h-12 rounded-full flex justify-center items-center`}>
                 <IconAnt name='check' size={25} color="white"/>
               </View>
@@ -483,7 +492,7 @@ const Peta = ({ route, navigation }) => {
               </Pressable>
             }
             {
-              <Pressable onPress={()=>{addMarker(koordinatBidangBaru,setKoordinatBidangBaru)}} >
+              !editFeature && <Pressable onPress={()=>{addMarker(koordinatBidangBaru,setKoordinatBidangBaru)}} >
                 <View style={tw`bg-blue-500 ml-2 w-12 h-12 rounded-full flex justify-center items-center`}>
                   <IconAnt name='plus' size={25} color="white"/>
                 </View>
