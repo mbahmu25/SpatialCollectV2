@@ -13,6 +13,7 @@
     "@react-native-async-storage/async-storage": "^1.17.10",
     "@react-navigation/native": "^6.0.12",
     "@react-navigation/native-stack": "^6.8.0",
+    "buffer": "^6.0.3",
     "react": "18.0.0",
     "react-native": "0.69.5",
     "react-native-document-picker": "^8.1.1",
@@ -24,9 +25,11 @@
     "react-native-scoped-storage": "^1.9.3",
     "react-native-screens": "^3.17.0",
     "react-native-select-dropdown": "^2.0.4",
-    "react-native-sweet-alert": "^3.5.0",
+    "react-native-sqlite-storage": "^6.0.1",
     "react-native-vector-icons": "^9.2.0",
-    "twrnc": "^3.4.0"
+    "twrnc": "^3.4.0",
+    "util": "^0.12.5",
+    "wkx": "^0.5.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.9",

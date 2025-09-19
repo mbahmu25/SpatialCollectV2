@@ -14,26 +14,29 @@ import tw from 'twrnc';
 import Geolocation from 'react-native-geolocation-service';
 import IconAnt from 'react-native-vector-icons/AntDesign';
 import IconMaterial from 'react-native-vector-icons/MaterialIcons';
-import {Icon} from 'react-native-vector-icons/AntDesign';
-// import {Ionicons} from '@react-native-vector-icons/ionicons';
 import Sidebar from '../components/sidebar/Sidebar';
 import BottomAttribute from '../components/BottomBar/BottomAttribute';
 import RNFS from 'react-native-fs';
-// import SweetAlert from 'react-native-sweet-alert';
+import SweetAlert from 'react-native-sweet-alert';
 import BottomMenu from '../components/BottomBar/BottomMenu';
 import GpsLocation from '../components/BottomBar/GpsLocation';
-// import Triangulate from '../utils/triangulate';
-import {Triangulate} from '../utils/triangulate';
+import SelectDropdown from 'react-native-select-dropdown';
+import {
+  getDBConnection,
+  getProjects,
+  exportProject,
+  getLayersByProject,
+  coordsToWKB,
+  WKBToCoords,
+} from '../utils/db';
 const Peta = ({route, navigation}) => {
+  const {projectId} = route.params;
   const [region, setRegion] = useState({
     latitude: -7.78825,
     longitude: 110.4324,
     latitudeDelta: 0.0012,
     longitudeDelta: 0.0012,
   });
-  const [toggleTriangulate, setToggleTriangulate] = useState(false);
-  const [triangulateCoord, setTriangulateCoord] = useState([]);
-
   const [koordinatBidangBaru, setKoordinatBidangBaru] = useState([]);
   const [koordinatBidangEdit, setkoordinatBidangEdit] = useState([]);
   const [selectBidang, setSelectBidang] = useState(false);
@@ -48,6 +51,12 @@ const Peta = ({route, navigation}) => {
   const [kolomAttribute, setKolomAttribute] = useState([]);
   const [indexEditBidang, setIndexEditBidang] = useState(false);
   const [dataProject, setDataProject] = useState({features: []});
+  const [layers, setLayers] = useState([]);
+  const [activeLayer, setActiveLayer] = useState({
+    nama: '',
+    id_layer: '',
+    index_array: '',
+  });
   const [attributeOpen, setAttributeOpen] = useState({
     mode: 'baru',
     buka: false,
@@ -57,27 +66,23 @@ const Peta = ({route, navigation}) => {
     longitude: 119.44451,
   });
   const map = useRef(false);
-
   useEffect(() => {
-    try {
-      const {path} = route.params;
-      RNFS.readFile(path, 'ascii')
-        .then(res => {
-          const data = JSON.parse(res);
-          var nama = path.split('/').pop();
-          setNamaFile(nama);
-          setDataProject(data);
-          setTipeGeometry(data['features'][0]['geometry']['type']);
-          setKolomAttribute(Object.keys(data['features'][0]['properties']));
-        })
-        .catch(err => {
-          console.log(err.message, err.code);
-        });
-    } catch (err) {
-      console.log(err);
+    if (projectId) {
+      loadLayers();
     }
-  }, []);
+  }, [projectId]);
 
+  const loadLayers = async () => {
+    try {
+      console.log('🔍 Loading layers for project:', projectId);
+      const data = await getLayersByProject(projectId); // ⬅️ PAKAI await
+      console.log('✅ Layers loaded:', data);
+      setLayers(data);
+      var typeGeom = data.tipe;
+    } catch (err) {
+      console.error('❌ Failed to load layers:', err);
+    }
+  };
   const hasLocationPermission = async () => {
     if (Platform.OS === 'android' && Platform.Version < 23) {
       return true;
@@ -143,7 +148,8 @@ const Peta = ({route, navigation}) => {
       }, 2000),
     );
   }, []);
-
+  // STOP BERHENTI GPS
+  // MASUK KE PENGUKURAN
   const tambahBidang = dataAtribute => {
     setIntervalGPS(
       setInterval(async () => {
@@ -225,12 +231,9 @@ const Peta = ({route, navigation}) => {
       getLocation(cb => {
         if (tipeGeometry == 'Point') {
           setAttributeOpen({mode: 'baru', buka: true});
-
           setStateKoordinat(
             stateKoordinat.concat([cb['longitude'], cb['latitude']]),
           );
-          // setToggleTriangulate(false);
-          setTriangulateCoord([]);
         } else if (
           tipeGeometry == 'MultiPolygon' ||
           tipeGeometry == 'Polygon'
@@ -238,8 +241,6 @@ const Peta = ({route, navigation}) => {
           setStateKoordinat(
             stateKoordinat.concat([[cb['longitude'], cb['latitude']]]),
           );
-          // setToggleTriangulate(false);
-          setTriangulateCoord([]);
         }
       });
     } else {
@@ -255,26 +256,7 @@ const Peta = ({route, navigation}) => {
       }
     }
   };
-  const addTriangulateCoord = (triangulateCoord, setTriangulateCoord) => {
-    clearInterval(intervalGPS);
-    if (GpsStatus) {
-      getLocation(cb => {
-        if (triangulateCoord.length !== 4) {
-          console.log(cb);
-          setTriangulateCoord(e => [
-            ...e,
-            [cb['latitude'], cb['longitude'], cb['altitude']],
-          ]);
-          console.log(triangulateCoord.length, triangulateCoord);
-          if (triangulateCoord.length === 3) {
-            var res = Triangulate(triangulateCoord, 2);
-            console.log('Result :', res);
-          }
-        }
-        // console.log(triangulateCoord);
-      });
-    }
-  };
+
   const editMarker = (
     koordinatBaru,
     index,
@@ -316,12 +298,12 @@ const Peta = ({route, navigation}) => {
           setDataProject(copyData);
           RNFS.writeFile(path, JSON.stringify(copyData), 'utf8')
             .then(success => {
-              // SweetAlert.showAlertWithOptions({
-              //   title: 'Data berhasil dihapus',
-              //   subTitle: 'Tekan tombol Ok untuk menutup',
-              //   style: 'success',
-              //   cancellable: true,
-              // });
+              SweetAlert.showAlertWithOptions({
+                title: 'Data berhasil dihapus',
+                subTitle: 'Tekan tombol Ok untuk menutup',
+                style: 'success',
+                cancellable: true,
+              });
               setDataProject(copyData);
             })
             .catch(err => {
@@ -347,13 +329,12 @@ const Peta = ({route, navigation}) => {
           const {path} = route.params;
           RNFS.writeFile(path, JSON.stringify(copyData), 'utf8')
             .then(success => {
-              // SweetAlert.showAlertWithOptions({
-              //   title: 'Attribut berhasil diupdate',
-              //   subTitle: 'Tekan tombol Ok untuk menutup',
-              //   style: 'success',
-              //   cancellable: true,
-              // });
-              console.log('sukses');
+              SweetAlert.showAlertWithOptions({
+                title: 'Attribut berhasil diupdate',
+                subTitle: 'Tekan tombol Ok untuk menutup',
+                style: 'success',
+                cancellable: true,
+              });
             })
             .catch(err => {
               console.log(err.message);
@@ -567,38 +548,31 @@ const Peta = ({route, navigation}) => {
           <Text style={tw`text-white ml-2`}>{namaFile}</Text>
         </View>
         {GpsStatus && posisiGPS && <GpsLocation posisiGPS={posisiGPS} />}
+        <SelectDropdown
+          data={layers.map((e, i) => ({
+            nama: e.nama,
+            id: e.id_layer,
+            index_array: i,
+          }))}
+          onSelect={selectedItem => {
+            setActiveLayer({
+              nama: selectedItem.nama,
+              id_layer: selectedItem.id,
+              index_array: selectedItem.index_array,
+            });
+            setTipeGeometry(layers[selectedItem.index_array].tipe);
+            // console.log(tipeGeometry, selectedItem.index_array);
+          }}
+          defaultButtonText="Tipe"
+          buttonStyle={tw`bg-[white] w-full rounded-b-2`}
+          buttonTextAfterSelection={selectedItem => selectedItem.nama}
+          rowTextForSelection={item => item.nama}
+        />
       </View>
 
       <Sidebar open={open} setOpen={setOpen} navigation={navigation} />
 
       <View style={tw`absolute bottom-2 right-2 justify-end items-end`}>
-        <Pressable
-          onPress={() => setToggleTriangulate(!toggleTriangulate)}
-          style={tw`flex flex-row items-center`}>
-          {toggleTriangulate ? (
-            <View style={tw`flex flex-row items-center gap-4`}>
-              {/* Counter Badge */}
-              <View
-                style={tw`bg-white shadow-md w-12 h-12 rounded-full flex justify-center items-center`}>
-                <Text style={tw`text-lg font-bold text-gray-800`}>
-                  {triangulateCoord.length}
-                </Text>
-              </View>
-
-              {/* Active Button */}
-              <View
-                style={tw`bg-green-500 shadow-md w-12 h-12 rounded-full flex justify-center items-center`}>
-                <IconMaterial name="triangle" size={25} color="white" />
-              </View>
-            </View>
-          ) : (
-            // Inactive Button
-            <View
-              style={tw`bg-red-500 shadow-md w-12 h-12 rounded-full flex justify-center items-center`}>
-              <IconMaterial name="triangle-outline" size={25} color="white" />
-            </View>
-          )}
-        </Pressable>
         <Pressable
           onPress={() => {
             setGpsStatus(!GpsStatus);
@@ -645,28 +619,12 @@ const Peta = ({route, navigation}) => {
                 style={tw`bg-white w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
                 <IconAnt name="minus" size={25} color="black" />
               </View>
-              <View
-                style={tw`bg-white w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
-                <IconAnt name="minus" size={25} color="black" />
-              </View>
             </Pressable>
           )}
           {!editFeature && (
             <Pressable
               onPress={() => {
-                if (toggleTriangulate === false) {
-                  addMarker(koordinatBidangBaru, setKoordinatBidangBaru);
-                } else if (
-                  toggleTriangulate === true &&
-                  triangulateCoord.length < 4
-                ) {
-                  addTriangulateCoord(triangulateCoord, setTriangulateCoord);
-                } else if (
-                  toggleTriangulate === true &&
-                  triangulateCoord.length === 4
-                ) {
-                  addMarker(koordinatBidangBaru, setKoordinatBidangBaru);
-                }
+                addMarker(koordinatBidangBaru, setKoordinatBidangBaru);
               }}>
               <View
                 style={tw`bg-blue-500 ml-2 w-12 h-12 rounded-full flex justify-center items-center`}>
@@ -711,6 +669,7 @@ const Peta = ({route, navigation}) => {
             )}
           </View>
         )}
+
         <BottomMenu
           menuOpen={menuOpen}
           setAttributeOpen={setAttributeOpen}
@@ -719,6 +678,7 @@ const Peta = ({route, navigation}) => {
           deleteBidang={deleteBidang}
           setSelectBidang={setSelectBidang}
         />
+
         <BottomAttribute
           attributeOpen={attributeOpen}
           setAttributeOpen={setAttributeOpen}
