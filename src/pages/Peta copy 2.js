@@ -1,0 +1,698 @@
+import {
+  View,
+  Text,
+  Pressable,
+  Platform,
+  PermissionsAndroid,
+  ToastAndroid,
+  Alert,
+  Dimensions,
+} from 'react-native';
+import React, {useRef, useState, useEffect} from 'react';
+import MapView, {Marker, Polygon, WMSTile} from 'react-native-maps';
+import tw from 'twrnc';
+import Geolocation from 'react-native-geolocation-service';
+import IconAnt from 'react-native-vector-icons/AntDesign';
+import IconMaterial from 'react-native-vector-icons/MaterialIcons';
+import Sidebar from '../components/sidebar/Sidebar';
+import BottomAttribute from '../components/BottomBar/BottomAttribute';
+import RNFS from 'react-native-fs';
+import SweetAlert from 'react-native-sweet-alert';
+import BottomMenu from '../components/BottomBar/BottomMenu';
+import GpsLocation from '../components/BottomBar/GpsLocation';
+import SelectDropdown from 'react-native-select-dropdown';
+import {
+  getDBConnection,
+  getProjects,
+  exportProject,
+  getLayersByProject,
+  coordsToWKB,
+  WKBToCoords,
+} from '../utils/db';
+const Peta = ({route, navigation}) => {
+  const {projectId} = route.params;
+  const [region, setRegion] = useState({
+    latitude: -7.78825,
+    longitude: 110.4324,
+    latitudeDelta: 0.0012,
+    longitudeDelta: 0.0012,
+  });
+  const [koordinatBidangBaru, setKoordinatBidangBaru] = useState([]);
+  const [koordinatBidangEdit, setkoordinatBidangEdit] = useState([]);
+  const [selectBidang, setSelectBidang] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [GpsStatus, setGpsStatus] = useState(true);
+  const [posisiGPS, setPosisiGps] = useState(false);
+  const [intervalGPS, setIntervalGPS] = useState(false);
+  const [namaFile, setNamaFile] = useState('');
+  const [tipeGeometry, setTipeGeometry] = useState();
+  const [editFeature, setEditFeature] = useState(false);
+  const [kolomAttribute, setKolomAttribute] = useState([]);
+  const [indexEditBidang, setIndexEditBidang] = useState(false);
+  const [dataProject, setDataProject] = useState({features: []});
+  const [layers, setLayers] = useState([]);
+  const [activeLayer, setActiveLayer] = useState({
+    nama: '',
+    id_layer: '',
+    index_array: '',
+  });
+  const [attributeOpen, setAttributeOpen] = useState({
+    mode: 'baru',
+    buka: false,
+  });
+  const [startLocation, setStartLocation] = useState({
+    latitude: -5.134054,
+    longitude: 119.44451,
+  });
+  const map = useRef(false);
+  useEffect(() => {
+    if (projectId) {
+      loadLayers();
+    }
+  }, [projectId]);
+
+  const loadLayers = async () => {
+    try {
+      console.log('🔍 Loading layers for project:', projectId);
+      const data = await getLayersByProject(projectId); // ⬅️ PAKAI await
+      console.log('✅ Layers loaded:', data);
+      setLayers(data);
+      var typeGeom = data.tipe;
+    } catch (err) {
+      console.error('❌ Failed to load layers:', err);
+    }
+  };
+  const hasLocationPermission = async () => {
+    if (Platform.OS === 'android' && Platform.Version < 23) {
+      return true;
+    }
+
+    const hasPermission = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    );
+    if (hasPermission) {
+      return true;
+    }
+
+    const status = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      {
+        title: 'Example App',
+        message: 'Example App access to your location ',
+      },
+    );
+
+    if (status === PermissionsAndroid.RESULTS.GRANTED) {
+      return true;
+    }
+
+    if (status === PermissionsAndroid.RESULTS.DENIED) {
+      ToastAndroid.show(
+        'Location permission denied by user.',
+        ToastAndroid.LONG,
+      );
+    } else if (status === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      ToastAndroid.show(
+        'Location permission revoked by user.',
+        ToastAndroid.LONG,
+      );
+    }
+
+    return false;
+  };
+
+  var getLocation = async cb => {
+    const hasPermission = await hasLocationPermission();
+    if (!hasPermission) {
+      return;
+    }
+    Geolocation.getCurrentPosition(
+      position => {
+        cb(position['coords']);
+      },
+      error => {
+        console.log(error);
+      },
+      {enableHighAccuracy: true, timeout: 15000},
+    );
+  };
+
+  useEffect(() => {
+    getLocation(cb => {
+      setStartLocation({longitude: cb['longitude'], latitude: cb['latitude']});
+    });
+    setIntervalGPS(
+      setInterval(async () => {
+        getLocation(cb => setPosisiGps(cb));
+      }, 2000),
+    );
+  }, []);
+  // STOP BERHENTI GPS
+  // MASUK KE PENGUKURAN
+  const tambahBidang = dataAtribute => {
+    setIntervalGPS(
+      setInterval(async () => {
+        getLocation(cb => setPosisiGps(cb));
+      }, 2000),
+    );
+    var koordinat = [...koordinatBidangBaru];
+    var daftarFeature = dataProject['features'];
+    var copyData = dataProject;
+    if (tipeGeometry == 'Point') {
+      koordinat = [koordinat[0], koordinat[1]];
+      var dataBaruGeojson = {
+        geometry: {coordinates: koordinat, type: tipeGeometry},
+        properties: dataAtribute,
+        type: 'Feature',
+      };
+    } else if (tipeGeometry == 'MultiPolygon' || tipeGeometry == 'Polygon') {
+      var dataBaruGeojson = {
+        geometry: {coordinates: [[koordinat]], type: tipeGeometry},
+        properties: dataAtribute,
+        type: 'Feature',
+      };
+    }
+    var gabung = daftarFeature.concat(dataBaruGeojson);
+    copyData['features'] = gabung;
+    saveData(copyData);
+    setDataProject(copyData);
+    setAttributeOpen({mode: 'baru', buka: false});
+    setKoordinatBidangBaru([]);
+  };
+
+  const saveData = async data => {
+    try {
+      await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      ]);
+    } catch (err) {
+      console.warn(err);
+    }
+    const readGranted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+    );
+    const writeGranted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    );
+
+    if (!readGranted || !writeGranted) {
+      console.log('Read and write permissions have not been granted');
+      return;
+    }
+
+    const {path} = route.params;
+
+    RNFS.writeFile(path, JSON.stringify(data), 'utf8')
+      .then(success => {
+        console.log('SUCCESS');
+      })
+      .catch(err => {
+        console.log(err.message);
+      });
+  };
+
+  const saveEditGeometry = () => {
+    var index = indexEditBidang;
+    var copyData = dataProject;
+    copyData['features'][index]['geometry']['coordinates'][0][0] =
+      koordinatBidangEdit;
+    setDataProject(copyData);
+    setEditFeature(false);
+    setSelectBidang(false);
+    setkoordinatBidangEdit([]);
+    saveData(copyData);
+  };
+
+  const addMarker = (stateKoordinat, setStateKoordinat) => {
+    clearInterval(intervalGPS);
+    if (GpsStatus) {
+      getLocation(cb => {
+        if (tipeGeometry == 'Point') {
+          setAttributeOpen({mode: 'baru', buka: true});
+          setStateKoordinat(
+            stateKoordinat.concat([cb['longitude'], cb['latitude']]),
+          );
+        } else if (
+          tipeGeometry == 'MultiPolygon' ||
+          tipeGeometry == 'Polygon'
+        ) {
+          setStateKoordinat(
+            stateKoordinat.concat([[cb['longitude'], cb['latitude']]]),
+          );
+        }
+      });
+    } else {
+      if (tipeGeometry == 'Point') {
+        setAttributeOpen({mode: 'baru', buka: true});
+        setStateKoordinat(
+          stateKoordinat.concat([region['longitude'], region['latitude']]),
+        );
+      } else if (tipeGeometry == 'MultiPolygon' || tipeGeometry == 'Polygon') {
+        setStateKoordinat(
+          stateKoordinat.concat([[region['longitude'], region['latitude']]]),
+        );
+      }
+    }
+  };
+
+  const editMarker = (
+    koordinatBaru,
+    index,
+    stateKoordinat,
+    setStateKoordinat,
+  ) => {
+    var koordinat = [...stateKoordinat];
+    koordinat[index] = [koordinatBaru['longitude'], koordinatBaru['latitude']];
+    setStateKoordinat(koordinat);
+  };
+
+  const editBidang = () => {
+    setEditFeature(true);
+    setSelectBidang(false);
+    var index = indexEditBidang;
+    var bidang = dataProject['features'][index]['geometry'];
+    if (tipeGeometry == 'MultiPolygon' || tipeGeometry == 'Polygon') {
+      setkoordinatBidangEdit(bidang['coordinates'][0][0]);
+    } else if (tipeGeometry == 'Point') {
+      setkoordinatBidangEdit(bidang['coordinates']);
+    }
+  };
+
+  const deleteBidang = () => {
+    Alert.alert('Peringatan', 'Apa anda ingin menghapus data?', [
+      {
+        text: 'Cancel',
+        onPress: () => console.log('Cancel Pressed'),
+        style: 'cancel',
+      },
+      {
+        text: 'OK',
+        onPress: () => {
+          var copyData = dataProject;
+          copyData['features'].splice(indexEditBidang, 1);
+          const {path} = route.params;
+          setkoordinatBidangEdit([]);
+          setSelectBidang(false);
+          setDataProject(copyData);
+          RNFS.writeFile(path, JSON.stringify(copyData), 'utf8')
+            .then(success => {
+              SweetAlert.showAlertWithOptions({
+                title: 'Data berhasil dihapus',
+                subTitle: 'Tekan tombol Ok untuk menutup',
+                style: 'success',
+                cancellable: true,
+              });
+              setDataProject(copyData);
+            })
+            .catch(err => {
+              console.log(err.message);
+            });
+        },
+      },
+    ]);
+  };
+
+  const editAttribute = input => {
+    Alert.alert('Peringatan', 'Apa anda ingin menyimpan perubahan atribute?', [
+      {
+        text: 'Cancel',
+        onPress: () => console.log('Cancel Pressed'),
+        style: 'cancel',
+      },
+      {
+        text: 'OK',
+        onPress: () => {
+          var copyData = dataProject;
+          copyData['features'][indexEditBidang]['properties'] = input['data'];
+          const {path} = route.params;
+          RNFS.writeFile(path, JSON.stringify(copyData), 'utf8')
+            .then(success => {
+              SweetAlert.showAlertWithOptions({
+                title: 'Attribut berhasil diupdate',
+                subTitle: 'Tekan tombol Ok untuk menutup',
+                style: 'success',
+                cancellable: true,
+              });
+            })
+            .catch(err => {
+              console.log(err.message);
+            });
+        },
+      },
+    ]);
+  };
+
+  const undoEdit = () => {
+    if (koordinatBidangBaru.length == 1) {
+      setKoordinatBidangBaru([]);
+    } else {
+      var koordinat = [...koordinatBidangBaru];
+      setKoordinatBidangBaru(koordinat.slice(0, -1));
+    }
+  };
+
+  const pilihBidang = index => {
+    if (editFeature) return;
+    setIndexEditBidang(index);
+    setMenuOpen(true);
+    var bidang = dataProject['features'][index];
+    setSelectBidang(bidang);
+  };
+
+  const cancelEdit = () => {
+    Alert.alert('Peringatan', 'Semua perubahan yang anda buat akan hilang', [
+      {
+        text: 'Cancel',
+        onPress: () => console.log('Cancel Pressed'),
+        style: 'cancel',
+      },
+      {
+        text: 'OK',
+        onPress: () => {
+          setEditFeature(false);
+          setKoordinatBidangBaru([]);
+          setkoordinatBidangEdit([]);
+          setSelectBidang(false);
+        },
+      },
+    ]);
+  };
+
+  const CreateGeometry = ({
+    data,
+    stylePoint = 'bg-yellow-500 border-2 border-white',
+    styleStroke = 'yellow',
+    select = false,
+  }) => {
+    if (tipeGeometry == 'MultiPolygon' || tipeGeometry == 'Polygon') {
+      var koordinat = [];
+      if (select) {
+        data[0][0].map(data => {
+          koordinat.push({latitude: data[1], longitude: data[0]});
+        });
+      } else {
+        data.map(data => {
+          koordinat.push({latitude: data[1], longitude: data[0]});
+        });
+      }
+
+      return (
+        <Polygon
+          coordinates={koordinat}
+          strokeColor={styleStroke}
+          fillColor="rgba(14,165,233,0.2)"
+        />
+      );
+    } else if (tipeGeometry == 'Point') {
+      return (
+        <Marker coordinate={{latitude: data[1], longitude: data[0]}}>
+          <View style={tw` flex items-center justify-center`}>
+            <View
+              style={[
+                tw`h-3 w-3 rounded-full flex items-center justify-center`,
+                tw`${stylePoint}`,
+              ]}></View>
+          </View>
+        </Marker>
+      );
+    }
+  };
+
+  return (
+    <View style={tw`w-full h-full `}>
+      <MapView
+        ref={map}
+        mapType={'satellite'}
+        style={tw`w-full h-full absolute`}
+        showsUserLocation={true}
+        region={{
+          latitude: startLocation['latitude'],
+          longitude: startLocation['longitude'],
+          latitudeDelta: 0.0112,
+          longitudeDelta: 0.0112,
+        }}
+        onRegionChangeComplete={regionPerubahan => setRegion(regionPerubahan)}>
+        <WMSTile
+          urlTemplate={`https://ppids-ugm.com/geoserver/ppids/wms?service=WMS&version=1.1.1&request=GetMap&layers=ppids:gpr2020Tif&format=image/png&transparent=true&styles=&bbox={minX},{minY},{maxX},{maxY}&width={width}&height={height}&srs=EPSG:3857`}
+          zIndex={1}
+          offlineMode={true}
+          tileSize={256}
+        />
+        {tipeGeometry != 'Point' &&
+          koordinatBidangBaru.length != 0 &&
+          koordinatBidangBaru.map((data, index) => {
+            return (
+              <Marker
+                key={index}
+                coordinate={{latitude: data[1], longitude: data[0]}}
+                draggable
+                onDrag={e =>
+                  editMarker(
+                    e.nativeEvent.coordinate,
+                    index,
+                    koordinatBidangBaru,
+                    setKoordinatBidangBaru,
+                  )
+                }>
+                <View style={tw` flex items-center justify-center`}>
+                  <View
+                    style={tw`h-3 w-3 rounded-full bg-yellow-500 border-2 border-white flex items-center justify-center`}></View>
+                </View>
+              </Marker>
+            );
+          })}
+        {tipeGeometry != 'Point' &&
+          koordinatBidangEdit.length != 0 &&
+          koordinatBidangEdit.map((data, index) => {
+            return (
+              <Marker
+                key={index}
+                coordinate={{latitude: data[1], longitude: data[0]}}
+                draggable
+                onDrag={e =>
+                  editMarker(
+                    e.nativeEvent.coordinate,
+                    index,
+                    koordinatBidangEdit,
+                    setkoordinatBidangEdit,
+                  )
+                }>
+                <View style={tw` flex items-center justify-center`}>
+                  <View
+                    style={tw`h-3 w-3 rounded-full bg-yellow-500 border-2 border-white flex items-center justify-center`}></View>
+                </View>
+              </Marker>
+            );
+          })}
+        {koordinatBidangBaru.length != 0 && (
+          <CreateGeometry data={koordinatBidangBaru} />
+        )}
+        {koordinatBidangEdit.length != 0 && (
+          <CreateGeometry data={koordinatBidangEdit} />
+        )}
+        {selectBidang && (
+          <CreateGeometry
+            data={selectBidang['geometry']['coordinates']}
+            select={true}
+          />
+        )}
+        {dataProject['features'] &&
+          dataProject['features'].length != 0 &&
+          dataProject['features'].map((data, index) => {
+            if (tipeGeometry == 'Point') {
+              return (
+                <Marker
+                  key={index}
+                  coordinate={{
+                    latitude: data['geometry']['coordinates'][1],
+                    longitude: data['geometry']['coordinates'][0],
+                  }}
+                  onPress={() => pilihBidang(index)}>
+                  <View style={tw` flex items-center justify-center`}>
+                    <View
+                      style={tw`h-3 w-3 rounded-full bg-green-500 border-2 border-white flex items-center justify-center`}></View>
+                  </View>
+                </Marker>
+              );
+            } else if (
+              tipeGeometry == 'MultiPolygon' ||
+              tipeGeometry == 'Polygon'
+            ) {
+              var koordinat = [];
+              data['geometry']['coordinates'][0][0].map(data => {
+                koordinat.push({latitude: data[1], longitude: data[0]});
+              });
+              return (
+                <Polygon
+                  key={index}
+                  tappable={true}
+                  onPress={() => pilihBidang(index)}
+                  coordinates={koordinat}
+                  strokeColor="green"
+                  strokeWidth={2}
+                  fillColor="rgba(0,0,0,0.3)"
+                />
+              );
+            }
+          })}
+      </MapView>
+
+      <View style={tw`w-full absolute top-0 `}>
+        <View
+          style={tw`bg-sky-800 flex-row py-3 px-2 flex justify-start items-center`}>
+          <Pressable onPress={() => setOpen(!open)}>
+            <IconAnt name="profile" size={28} color="white" />
+          </Pressable>
+          <Text style={tw`text-white ml-2`}>{namaFile}</Text>
+        </View>
+        {GpsStatus && posisiGPS && <GpsLocation posisiGPS={posisiGPS} />}
+        <SelectDropdown
+          data={layers.map((e, i) => ({
+            nama: e.nama,
+            id: e.id_layer,
+            index_array: i,
+          }))}
+          onSelect={selectedItem => {
+            setActiveLayer({
+              nama: selectedItem.nama,
+              id_layer: selectedItem.id,
+              index_array: selectedItem.index_array,
+            });
+            setTipeGeometry(layers[selectedItem.index_array].tipe);
+            // console.log(tipeGeometry, selectedItem.index_array);
+          }}
+          defaultButtonText="Tipe"
+          buttonStyle={tw`bg-[white] w-full rounded-b-2`}
+          buttonTextAfterSelection={selectedItem => selectedItem.nama}
+          rowTextForSelection={item => item.nama}
+        />
+      </View>
+
+      <Sidebar open={open} setOpen={setOpen} navigation={navigation} />
+
+      <View style={tw`absolute bottom-2 right-2 justify-end items-end`}>
+        <Pressable
+          onPress={() => {
+            setGpsStatus(!GpsStatus);
+          }}>
+          <View
+            style={tw`bg-blue-500 mb-2 w-12 h-12 rounded-full flex justify-center items-center`}>
+            {GpsStatus ? (
+              <IconMaterial name="gps-fixed" size={25} color="white" />
+            ) : (
+              <IconMaterial name="gps-off" size={25} color="white" />
+            )}
+          </View>
+        </Pressable>
+
+        <View style={tw`flex-row`}>
+          {koordinatBidangBaru.length > 2 && (
+            <Pressable
+              onPress={() => {
+                setAttributeOpen({mode: 'baru', buka: true});
+              }}>
+              <View
+                style={tw`bg-green-500 w-12 h-12 rounded-full flex justify-center items-center`}>
+                <IconAnt name="check" size={25} color="white" />
+              </View>
+            </Pressable>
+          )}
+          {koordinatBidangBaru.length !== 0 && (
+            <Pressable
+              onPress={() => {
+                setKoordinatBidangBaru([]);
+              }}>
+              <View
+                style={tw`bg-red-500 w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
+                <IconAnt name="close" size={25} color="white" />
+              </View>
+            </Pressable>
+          )}
+          {koordinatBidangBaru.length !== 0 && (
+            <Pressable
+              onPress={() => {
+                undoEdit();
+              }}>
+              <View
+                style={tw`bg-white w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
+                <IconAnt name="minus" size={25} color="black" />
+              </View>
+            </Pressable>
+          )}
+          {!editFeature && (
+            <Pressable
+              onPress={() => {
+                addMarker(koordinatBidangBaru, setKoordinatBidangBaru);
+              }}>
+              <View
+                style={tw`bg-blue-500 ml-2 w-12 h-12 rounded-full flex justify-center items-center`}>
+                <IconAnt name="plus" size={25} color="white" />
+              </View>
+            </Pressable>
+          )}
+        </View>
+
+        {editFeature && (
+          <View style={tw`flex-row`}>
+            <Pressable
+              onPress={() => {
+                saveEditGeometry();
+              }}>
+              <View
+                style={tw`bg-green-500 w-12 h-12 rounded-full flex justify-center items-center`}>
+                <IconAnt name="check" size={25} color="white" />
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                cancelEdit();
+              }}>
+              <View
+                style={tw`bg-red-500 w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
+                <IconAnt name="close" size={25} color="white" />
+              </View>
+            </Pressable>
+
+            {tipeGeometry !== 'Point' && (
+              <Pressable
+                onPress={() => {
+                  addMarker(koordinatBidangEdit, setkoordinatBidangEdit);
+                }}>
+                <View
+                  style={tw`bg-blue-500 w-12 h-12 ml-2 rounded-full flex justify-center items-center`}>
+                  <IconAnt name="plus" size={25} color="white" />
+                </View>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        <BottomMenu
+          menuOpen={menuOpen}
+          setAttributeOpen={setAttributeOpen}
+          setMenuOpen={setMenuOpen}
+          editBidang={editBidang}
+          deleteBidang={deleteBidang}
+          setSelectBidang={setSelectBidang}
+        />
+
+        <BottomAttribute
+          attributeOpen={attributeOpen}
+          setAttributeOpen={setAttributeOpen}
+          kolomAttribute={kolomAttribute}
+          tambahBidang={tambahBidang}
+          setSelectBidang={setSelectBidang}
+          selectBidang={selectBidang}
+          cancelEdit={cancelEdit}
+          editAttribute={editAttribute}
+          editBidang={editBidang}
+        />
+      </View>
+    </View>
+  );
+};
+
+export default Peta;
