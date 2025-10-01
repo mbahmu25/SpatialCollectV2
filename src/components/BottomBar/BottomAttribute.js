@@ -114,6 +114,7 @@ const BottomAttribute = ({
           )} */}
 
           <Text style={tw`text-white font-medium`}>Attribute</Text>
+          <Text style={tw`text-white font-medium`}>Attribute</Text>
 
           {attributeOpen['mode'] == 'baru' ? (
             <View style={tw`flex-row`}>
